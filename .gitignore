@@ -1,0 +1,15 @@
+# VS Code IDE settings
+.vscode/
+
+# Build artifacts
+*.o
+*.out
+*.exe
+sr
+
+# Backup files
+*~
+*.swp
+
+# MacOS / Linux system files
+.DS_Store
