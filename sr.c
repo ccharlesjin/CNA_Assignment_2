@@ -25,7 +25,7 @@
 #define RTT  16.0       /* round trip time.  MUST BE SET TO 16.0 when submitting assignment */
 #define WINDOWSIZE 6    /* the maximum number of buffered unacked packet
                           MUST BE SET TO 6 when submitting assignment */
-#define SEQSPACE 13      /* the min sequence space for GBN must be at least windowsize + 1 */
+#define SEQSPACE 7    /* the min sequence space for GBN must be at least windowsize + 1 */
 #define NOTINUSE (-1)   /* used to fill header fields that are not being used */
 
 /* generic procedure to compute the checksum of a packet.  Used by both sender and receiver
@@ -62,75 +62,43 @@ static bool acked [SEQSPACE];        /* mark whether each packet in window is ac
 static int base;                        /* base of the window */
 static int nextseqnum;                  /* sequence number for next packet to send */
 
-/* a buffer for layer-5 messgaes that cannot enter window */
-#define APP_BUF 1000 
-static struct msg app_buffer[APP_BUF];
-static int app_head = 0;      /* index of first waiting message */
-static int app_tail = 0;      /* next position to store new message */
-static int app_cnt  = 0;      /* count of messages in buffer */
-
-/* try to take messages from app_buffer, put into window and send */
-static void flush_app_buffer(void)
-{
-    /* keep send if buffer is not empty and window is not full */
-    while (app_cnt > 0 &&
-           (nextseqnum + SEQSPACE - base) % SEQSPACE < WINDOWSIZE)
-    {
-        struct pkt sendpkt;
-        struct msg msg2send;
-        int i;
-
-        /* fetch one message */
-        msg2send   = app_buffer[app_head];
-        app_head   = (app_head + 1) % APP_BUF;
-        app_cnt--;
-
-        /* make packet */
-        sendpkt.seqnum = nextseqnum;
-        sendpkt.acknum = NOTINUSE;
-        for (i = 0; i < 20; i++)
-            sendpkt.payload[i] = msg2send.data[i];
-        sendpkt.checksum = ComputeChecksum(sendpkt);
-
-        /* send to layer 3 */
-        if (TRACE > 0)
-            printf("Sending packet %d to layer 3\n", sendpkt.seqnum);
-        tolayer3(A, sendpkt);
-
-        /* save in window */
-        buffer[nextseqnum] = sendpkt;
-        acked [nextseqnum] = false;
-
-        if (base == nextseqnum)
-            starttimer(A, RTT);
-
-        nextseqnum = (nextseqnum + 1) % SEQSPACE;
-    }
-}
-
 /* called from layer 5 (application layer), passed the message to be sent to other side */
 void A_output(struct msg message)
-{
+{   
+    int i;
+    struct pkt sendpkt;
     /* put message into local buffer first */
-    if (app_cnt == APP_BUF)
-    {
-        return;
-    }
-    app_buffer[app_tail] = message;
-    app_tail = (app_tail + 1) % APP_BUF;
-    app_cnt++;
-
     if ( (nextseqnum + SEQSPACE - base) % SEQSPACE >= WINDOWSIZE ) {
         if (TRACE > 0)
             printf("----A: New message arrives, send window is full\n");
         window_full++;
-    } else {
-        if (TRACE > 1)
-            printf("----A: New message arrives, send window is not full, send new messge to layer3!\n");
+        return;
     }
+    if (TRACE > 1)
+        printf("----A: New message arrives, send window is not full, send new messge to layer3!\n");
+    
+    /* 2. 封装一个分组 */
+    sendpkt.seqnum = nextseqnum;
+    sendpkt.acknum = NOTINUSE;
+    for (i = 0; i < 20; ++i)
+        sendpkt.payload[i] = message.data[i];
+    sendpkt.checksum = ComputeChecksum(sendpkt);
 
-    /* try to send out packages from buffer */
-    flush_app_buffer();
+    /* 3. 发送到网络层 */
+    if (TRACE > 0)
+        printf("Sending packet %d to layer 3\n", sendpkt.seqnum);
+    tolayer3(A, sendpkt);
+
+    /* 4. 备份到发送窗口 */
+    buffer[nextseqnum] = sendpkt;
+    acked [nextseqnum] = false;
+
+    /* 5. 如这是窗口中的第一包，则启动计时器 */
+    if (base == nextseqnum)
+        starttimer(A, RTT);
+
+    /* 6. 前进 nextseqnum（环形序号空间） */
+    nextseqnum = (nextseqnum + 1) % SEQSPACE;
 }
 
 
@@ -143,7 +111,7 @@ void A_input(struct pkt packet)
     bool in_window;
     int old_base;
     int idx;
-
+    
     if (IsCorrupted(packet)) {
         if (TRACE > 0)
             printf("----A: corrupted ACK is received, do nothing!\n");
@@ -168,8 +136,8 @@ void A_input(struct pkt packet)
     if (!acked[idx]) {
         if (TRACE > 0) printf("----A: ACK %d is not a duplicate\n", ack);
         new_ACKs++;
+        acked[idx] = true;
     }
-    acked[idx] = true;
 
     /* sliding until the first position which is not ACK */
     old_base = base;
@@ -183,9 +151,6 @@ void A_input(struct pkt packet)
         stoptimer(A);
         if (base != nextseqnum)
             starttimer(A, RTT);
-
-        /* window has free space, try send more */
-        flush_app_buffer();
     }
 }
 
@@ -202,9 +167,6 @@ void A_timerinterrupt(void)
     packets_resent++;
 
     starttimer(A, RTT);
-
-    /* window may still be full, but try to flush buffer anyway */
-    flush_app_buffer();
 }
 
 
