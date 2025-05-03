@@ -77,27 +77,25 @@ void A_output(struct msg message)
     if (TRACE > 1)
         printf("----A: New message arrives, send window is not full, send new messge to layer3!\n");
     
-    /* 2. 封装一个分组 */
+    /* make a package */
     sendpkt.seqnum = nextseqnum;
     sendpkt.acknum = NOTINUSE;
     for (i = 0; i < 20; ++i)
         sendpkt.payload[i] = message.data[i];
     sendpkt.checksum = ComputeChecksum(sendpkt);
 
-    /* 3. 发送到网络层 */
+    /* send to layer 3 */
     if (TRACE > 0)
         printf("Sending packet %d to layer 3\n", sendpkt.seqnum);
     tolayer3(A, sendpkt);
 
-    /* 4. 备份到发送窗口 */
     buffer[nextseqnum] = sendpkt;
     acked [nextseqnum] = false;
 
-    /* 5. 如这是窗口中的第一包，则启动计时器 */
+    /* start timer if it is the first package */
     if (base == nextseqnum)
         starttimer(A, RTT);
 
-    /* 6. 前进 nextseqnum（环形序号空间） */
     nextseqnum = (nextseqnum + 1) % SEQSPACE;
 }
 
