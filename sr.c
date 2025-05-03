@@ -78,7 +78,7 @@ static void flush_app_buffer(void)
     {
         struct pkt sendpkt;
         struct msg msg2send;
-        int        i;
+        int i;
 
         /* fetch one message */
         msg2send   = app_buffer[app_head];
@@ -93,8 +93,8 @@ static void flush_app_buffer(void)
         sendpkt.checksum = ComputeChecksum(sendpkt);
 
         /* send to layer 3 */
-        /* if (TRACE > 0)
-            printf("Sending packet %d to layer 3 (flush)\n", sendpkt.seqnum); */
+        if (TRACE > 0)
+            printf("Sending packet %d to layer 3\n", sendpkt.seqnum);
         tolayer3(A, sendpkt);
 
         /* save in window */
@@ -114,16 +114,20 @@ void A_output(struct msg message)
     /* put message into local buffer first */
     if (app_cnt == APP_BUF)
     {
-        if (TRACE)
-            printf("**** A_output: APP buffer overflow, message dropped!\n");
         return;
     }
     app_buffer[app_tail] = message;
     app_tail = (app_tail + 1) % APP_BUF;
     app_cnt++;
 
-    if (TRACE > 1)
-        printf("----A: New message cached, app_cnt = %d\n", app_cnt);
+    if ( (nextseqnum + SEQSPACE - base) % SEQSPACE >= WINDOWSIZE ) {
+        if (TRACE > 0)
+            printf("----A: New message arrives, send window is full\n");
+        window_full++;
+    } else {
+        if (TRACE > 1)
+            printf("----A: New message arrives, send window is not full, send new messge to layer3!\n");
+    }
 
     /* try to send out packages from buffer */
     flush_app_buffer();
