@@ -133,9 +133,6 @@ void A_input(struct pkt packet)
                 while (acked[base % WINDOWSIZE]) {
                     acked[base % WINDOWSIZE] = false;
 
-                    if (TRACE > 0)
-                        printf("----A: sliding window, base %d now\n", base);
-
                     base = (base + 1) % SEQSPACE;
 
                     stoptimer(A);
