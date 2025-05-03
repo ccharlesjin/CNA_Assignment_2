@@ -59,7 +59,6 @@ bool IsCorrupted(struct pkt packet)
 
 static struct pkt buffer[WINDOWSIZE];  /* array for storing packets waiting for ACK */
 static bool acked[WINDOWSIZE];          /* mark whether each packet in window is acked */
-static bool timer_running[WINDOWSIZE];  /* track timer status */
 static int base;                        /* base of the window */
 static int nextseqnum;                  /* sequence number for next packet to send */
 
@@ -84,10 +83,8 @@ void A_output(struct msg message)
         buffer[nextseqnum % WINDOWSIZE] = sendpkt;
         acked[nextseqnum % WINDOWSIZE] = false;
 
-        /* start timer */
-        if (!timer_running[nextseqnum % WINDOWSIZE]) {
+        if (base == nextseqnum) {
             starttimer(A, RTT);
-            timer_running[nextseqnum % WINDOWSIZE] = true;
         }
 
         nextseqnum = (nextseqnum + 1) % SEQSPACE;
@@ -128,14 +125,12 @@ void A_input(struct pkt packet)
         if (TRACE > 0)
             printf("A: Sliding window, base %d acknowledged\n", base);
         acked[base % WINDOWSIZE] = false;
-        timer_running[base % WINDOWSIZE] = false;
         base = (base + 1) % SEQSPACE;
 
         /* restart timer for new base */
         stoptimer(A);
         if (base != nextseqnum) {
             starttimer(A, RTT);
-            timer_running[base % WINDOWSIZE] = true;
         }
     }
 }
@@ -153,7 +148,6 @@ void A_timerinterrupt(void)
 
         /* restart timer */
         starttimer(A, RTT);
-        timer_running[base % WINDOWSIZE] = true;
     }
 }
 
@@ -168,7 +162,6 @@ void A_init(void)
     nextseqnum = 0;
     for (i = 0; i < WINDOWSIZE; i++) {
         acked[i] = false;
-        timer_running[i] = false;
     }
 }
 
