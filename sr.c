@@ -130,12 +130,14 @@ void A_input(struct pkt packet)
                 acked[index] = true;
 
                 /* try to slide window forward */
-                while (acked[base % WINDOWSIZE]) {
-                    acked[base % WINDOWSIZE] = false;
-
-                    base = (base + 1) % SEQSPACE;
-
+                if (acknum == base) {            /* sliding only if base is ACK */
                     stoptimer(A);
+                
+                    do {
+                        acked[base % WINDOWSIZE] = false;
+                        base = (base + 1) % SEQSPACE;
+                    } while (acked[base % WINDOWSIZE]);
+                
                     if (base != nextseqnum)
                         starttimer(A, RTT);
                 }
@@ -162,19 +164,14 @@ void A_input(struct pkt packet)
 /* called when A's timer goes off */
 void A_timerinterrupt(void)
 {
-    int i = base;
-    
-    if (TRACE > 0)
+    if (TRACE > 0){
         printf("----A: time out,resend packets!\n");
-
-    while (i != nextseqnum) {
-        if (TRACE > 0)
-            printf("---A: resending packet %d\n", buffer[i % WINDOWSIZE].seqnum);
-
-        tolayer3(A, buffer[i % WINDOWSIZE]);
-        packets_resent++;
-        i = (i + 1) % SEQSPACE;
+        printf("---A: resending packet %d\n", buffer[base % WINDOWSIZE].seqnum);
     }
+        
+
+    tolayer3(A, buffer[base % WINDOWSIZE]);
+    packets_resent++;
 
     starttimer(A, RTT);
 }
@@ -203,33 +200,28 @@ static int expected_base;                /* the next seqnum expected to be deliv
 void B_input(struct pkt packet)
 {
     struct pkt ack_pkt;
-    int i;
     int seq = packet.seqnum;
-    
-    if (IsCorrupted(packet)) {
+    int i;
+    bool in_window   = ((seq - expected_base + SEQSPACE) % SEQSPACE) < WINDOWSIZE;
+    bool corrupted   = IsCorrupted(packet);
+    bool send_last   = false;          /* if resend last correct package ACK */
+
+    /* check if the package if corrputed */
+    if (corrupted) {
         if (TRACE > 0)
             printf("----B: packet corrupted or not expected sequence number, resend ACK!\n");
-        return;
+        send_last = true;
     }
-
-    /* check if the packet is in current window */
-    if (((seq - expected_base + SEQSPACE) % SEQSPACE) < WINDOWSIZE) {
+    /* in current window */
+    else if (in_window) {
         if (!received[seq]) {
             recv_buffer[seq] = packet;
-            received[seq] = true;
-
-            if (TRACE > 0)
-                printf("----B: packet %d is correctly received, send ACK!\n",packet.seqnum);
+            received[seq]   = true;
         }
+        if (TRACE > 0)
+            printf("----B: packet %d is correctly received, send ACK!\n", seq);
 
-        /* send ACK back */
-        ack_pkt.seqnum = 0;
-        ack_pkt.acknum = seq;
-        for (i = 0; i < 20; i++) ack_pkt.payload[i] = '0';
-        ack_pkt.checksum = ComputeChecksum(ack_pkt);
-        tolayer3(B, ack_pkt);
-
-        /* try to deliver packets to application layer */
+        /* receive by order */
         while (received[expected_base]) {
             tolayer5(B, recv_buffer[expected_base].payload);
             packets_received++;
@@ -237,16 +229,28 @@ void B_input(struct pkt packet)
             expected_base = (expected_base + 1) % SEQSPACE;
         }
 
-    } else {
-        /* packet not in window, still send ACK */
-
-        ack_pkt.seqnum = 0;
         ack_pkt.acknum = seq;
-        for (i = 0; i < 20; i++) ack_pkt.payload[i] = '0';
-        ack_pkt.checksum = ComputeChecksum(ack_pkt);
-        tolayer3(B, ack_pkt);
     }
+    /* if out of window */
+    else {
+        if (TRACE > 0)
+            printf("----B: packet corrupted or not expected sequence number, resend ACK!\n");
+        send_last = true;
+    }
+
+    /* send ACK */
+    if (send_last) {
+        ack_pkt.acknum = (expected_base + SEQSPACE - 1) % SEQSPACE;
+    }
+
+    ack_pkt.seqnum = 0;
+    for (i = 0; i < 20; i++)
+        ack_pkt.payload[i] = '0';
+    ack_pkt.checksum = ComputeChecksum(ack_pkt);
+
+    tolayer3(B, ack_pkt);
 }
+
 
 /* the following routine will be called once (only) before any other */
 /* entity B routines are called. You can use it to do any initialization */
