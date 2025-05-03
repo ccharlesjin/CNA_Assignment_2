@@ -93,8 +93,8 @@ static void flush_app_buffer(void)
         sendpkt.checksum = ComputeChecksum(sendpkt);
 
         /* send to layer 3 */
-        if (TRACE > 0)
-            printf("Sending packet %d to layer 3 (flush)\n", sendpkt.seqnum);
+        /* if (TRACE > 0)
+            printf("Sending packet %d to layer 3 (flush)\n", sendpkt.seqnum); */
         tolayer3(A, sendpkt);
 
         /* save in window */
