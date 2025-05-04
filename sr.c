@@ -230,7 +230,7 @@ void B_input(struct pkt packet)
     /* Always ACK the received packet, even if corrupted or duplicate */
     ack_pkt.seqnum = 0;
     /* Filtering corruption pkg */
-    printf("B: 收到包！seq：%d\n", seq);
+    /* printf("B: 收到包！seq：%d\n", seq); */
     if (seq < 0 || seq >= SEQSPACE) {
         return;
     }
