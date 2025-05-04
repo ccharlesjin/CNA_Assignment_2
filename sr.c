@@ -136,6 +136,9 @@ void A_input(struct pkt packet)
         new_ACKs++;
         acked[ack] = true;
         sent_time[ack] = -1.0;
+    } else {
+        if (TRACE > 0)
+            printf ("----A: duplicate ACK received, do nothing!\n");
     }
 
     while (acked[base]) {
@@ -235,7 +238,7 @@ void B_input(struct pkt packet)
         return;
     }
     for (i = 0; i < 20; i++) ack_pkt.payload[i] = '0';
-    printf("corrupted: %d, seq: %d, expected_base: %d, SEQSPACE: %d, last_ack_sent: %d\n", corrupted, seq, expected_base, SEQSPACE, last_ack_sent);
+    /* printf("corrupted: %d, seq: %d, expected_base: %d, SEQSPACE: %d, last_ack_sent: %d\n", corrupted, seq, expected_base, SEQSPACE, last_ack_sent); */
     if (!corrupted && distance < WINDOWSIZE) {
         if (!received[seq]) {
             recv_buffer[seq] = packet;
