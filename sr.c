@@ -110,10 +110,7 @@ void A_input(struct pkt packet)
     int old_base;
 
     /* Filtering emulator corruption */
-    if (ack < 0 || ack >= SEQSPACE){
-        return;
-    }
-    if (IsCorrupted(packet)) {
+    if (IsCorrupted(packet) || ack < 0 || ack >= SEQSPACE) {
         if (TRACE > 0)
             printf("----A: corrupted ACK is received, do nothing!\n");
         return; 
@@ -225,7 +222,7 @@ void B_input(struct pkt packet)
     if (TRACE > 0){
         printf("----B: packet %d is correctly received, send ACK!\n", seq);
     }
-    
+
     packets_received++;
     ack_pkt.checksum = ComputeChecksum(ack_pkt);
     tolayer3(B, ack_pkt);
