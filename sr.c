@@ -203,10 +203,6 @@ void B_input(struct pkt packet)
     for (i = 0; i < 20; i++) ack_pkt.payload[i] = '0';
     /* printf("corrupted: %d, seq: %d, expected_base: %d, SEQSPACE: %d, distance: %d\n", corrupted, seq, expected_base, SEQSPACE, distance); */
     if (!corrupted && distance < WINDOWSIZE) {
-        /* if (TRACE > 0){
-            printf("----B: packet %d is correctly received, send ACK!\n", seq);
-        } */
-            packets_received++;
         if (!received[seq]) {
             recv_buffer[seq] = packet;
             received[seq] = true;
@@ -226,12 +222,13 @@ void B_input(struct pkt packet)
         /* If corrupted or duplicate/invalid, do nothing */
         return;
     }
-
-    ack_pkt.checksum = ComputeChecksum(ack_pkt);
-    tolayer3(B, ack_pkt);
     if (TRACE > 0){
         printf("----B: packet %d is correctly received, send ACK!\n", seq);
     }
+    
+    packets_received++;
+    ack_pkt.checksum = ComputeChecksum(ack_pkt);
+    tolayer3(B, ack_pkt);
 }
 
 
